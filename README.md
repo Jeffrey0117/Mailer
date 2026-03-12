@@ -1,50 +1,52 @@
 # Mailer
 
-CloudPipe 生態系的共用 Email 發送服務。
+> **[中文版 README](README.zh-TW.md)**
+
+Shared email sending service for the [CloudPipe](https://github.com/Jeffrey0117/CloudPipe) ecosystem.
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│ LaunchKit│───>│ PayGate  │───>│ Mailer   │───>│  用戶信箱 │
-│  (門面)  │    │ (收銀台) │    │ (傳令兵) │    │          │
+│ LaunchKit│───>│ PayGate  │───>│  Mailer  │───>│  Inbox   │
+│  (page)  │    │ (payment)│    │  (email) │    │          │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘
 ```
 
-**定位**：生態系的「嘴巴」。任何子專案需要發信（歡迎信、付款確認、通知），只要一行 Gateway SDK 呼叫即可，不需要各自設定 SMTP。
+Any sub-project that needs to send emails (welcome, payment confirmation, notifications) can do it with a single Gateway SDK call — no per-project SMTP setup required.
 
-## 功能
+## Features
 
-- Nodemailer + Resend SMTP（smtp.resend.com:465）
-- 3 套雙語模板（en / zh）：`welcome`、`purchase_success`、`notification`
-- 模板用 `{{key}}` 語法替換變數，inline CSS table layout，所有信箱相容
-- SMTP 未設定時自動 fallback 到 console.log（開發模式）
-- Transport 延遲建立（第一次發信才 create，省資源）
-- Bearer token 驗證（`MAILER_TOKEN`），未設定時開放（dev mode）
+- Nodemailer + Resend SMTP (smtp.resend.com:465)
+- 3 bilingual templates (en / zh): `welcome`, `purchase_success`, `notification`
+- `{{key}}` placeholder syntax, inline CSS table layout, universal email client support
+- Auto fallback to console.log when SMTP is not configured (dev mode)
+- Lazy transport creation (only connects on first send)
+- Bearer token auth (`MAILER_TOKEN`), open when unset (dev mode)
 
-## 快速啟動
+## Quick Start
 
 ```bash
 npm install
-cp .env.example .env   # 填入 SMTP 設定
+cp .env.example .env   # fill in SMTP settings
 PORT=4018 node server.js
 ```
 
-## 環境變數
+## Environment Variables
 
-| 變數 | 必填 | 說明 |
-|------|------|------|
-| `PORT` | 否 | 伺服器端口（預設 4018）|
-| `SMTP_HOST` | 否 | SMTP 主機（如 `smtp.resend.com`）|
-| `SMTP_PORT` | 否 | SMTP 端口（預設 465）|
-| `SMTP_USER` | 否 | SMTP 帳號（Resend 用 `resend`）|
-| `SMTP_PASS` | 否 | SMTP 密碼 / API Key |
-| `SMTP_FROM` | 否 | 寄件者（預設 `CloudPipe <noreply@isnowfriend.com>`）|
-| `MAILER_TOKEN` | 否 | Bearer 驗證 token（未設定 = 開放）|
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PORT` | No | Server port (default: 4018) |
+| `SMTP_HOST` | No | SMTP host (e.g. `smtp.resend.com`) |
+| `SMTP_PORT` | No | SMTP port (default: 465) |
+| `SMTP_USER` | No | SMTP user (Resend uses `resend`) |
+| `SMTP_PASS` | No | SMTP password / API key |
+| `SMTP_FROM` | No | Sender address (default: `CloudPipe <noreply@isnowfriend.com>`) |
+| `MAILER_TOKEN` | No | Bearer auth token (open when unset) |
 
 ## API
 
 ### `GET /api/health`
 
-健康檢查，回傳 SMTP 狀態和可用模板列表。
+Health check. Returns SMTP status and available templates.
 
 ```bash
 curl http://localhost:4018/api/health
@@ -61,7 +63,7 @@ curl http://localhost:4018/api/health
 
 ### `POST /api/send`
 
-直接發送 HTML 信件。
+Send a raw HTML email.
 
 ```bash
 curl -X POST http://localhost:4018/api/send \
@@ -76,7 +78,7 @@ curl -X POST http://localhost:4018/api/send \
 
 ### `POST /api/send-template`
 
-使用預設模板發信，支援 `en` / `zh` 雙語。
+Send a template-based email with locale support.
 
 ```bash
 curl -X POST http://localhost:4018/api/send-template \
@@ -87,52 +89,52 @@ curl -X POST http://localhost:4018/api/send-template \
     "template": "welcome",
     "locale": "zh",
     "data": {
-      "name": "小明",
+      "name": "Jeffrey",
       "appName": "Pokkit",
       "actionUrl": "https://pokkit.isnowfriend.com"
     }
   }'
 ```
 
-**可用模板：**
+**Available Templates:**
 
-| 模板 | 變數 | 用途 |
-|------|------|------|
-| `welcome` | `name`, `appName`, `actionUrl` | 新用戶歡迎信 |
-| `purchase_success` | `name`, `productName`, `amount`, `actionUrl` | 付款成功確認 |
-| `notification` | `heading`, `message`, `ctaText`, `actionUrl` | 通用通知 |
+| Template | Variables | Use Case |
+|----------|-----------|----------|
+| `welcome` | `name`, `appName`, `actionUrl` | New user welcome |
+| `purchase_success` | `name`, `productName`, `amount`, `actionUrl` | Payment confirmation |
+| `notification` | `heading`, `message`, `ctaText`, `actionUrl` | General notification |
 
-## 跨服務呼叫
+## Cross-Service Usage
 
-其他子專案透過 CloudPipe Gateway SDK 呼叫，零設定：
+Other sub-projects call Mailer via the CloudPipe Gateway SDK — zero config:
 
 ```javascript
 const gw = require('../../sdk/gateway');
 
-// 發送歡迎信
+// Send a welcome email
 await gw.call('mailer_send_template', {
   to: 'user@example.com',
   template: 'welcome',
-  locale: 'zh',
-  data: { name: '小明', appName: 'MyApp', actionUrl: 'https://...' },
+  locale: 'en',
+  data: { name: 'Jeffrey', appName: 'MyApp', actionUrl: 'https://...' },
 });
 
-// 直接發送 HTML
+// Send raw HTML
 await gw.call('mailer_send', {
   to: 'admin@example.com',
-  subject: '系統通知',
-  html: '<p>伺服器已重啟</p>',
+  subject: 'System Alert',
+  html: '<p>Server restarted</p>',
 });
 ```
 
-## 技術架構
+## Architecture
 
 - **Runtime**: Node.js, CJS (`require` / `module.exports`)
-- **HTTP**: Node 內建 `http` 模組（無框架）
+- **HTTP**: Node built-in `http` module (no framework)
 - **SMTP**: `nodemailer`
-- **模板**: 純 JS 字串模板 + inline CSS table layout
-- **程式碼**: `server.js`（178 行）+ `templates.js`（185 行）
+- **Templates**: Pure JS string templates + inline CSS table layout
+- **Source**: `server.js` (178 lines) + `templates.js` (185 lines)
 
-## 授權
+## License
 
 MIT
