@@ -1,0 +1,13 @@
+{
+  "name": "mailer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Shared email sending service for CloudPipe ecosystem",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
+}
