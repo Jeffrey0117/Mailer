@@ -66,11 +66,13 @@ function getFrom() {
   return process.env.SMTP_FROM || 'CloudPipe <noreply@isnowfriend.com>';
 }
 
-async function sendMail({ to, subject, html }) {
+async function sendMail({ to, subject, html, from }) {
+  const sender = from || getFrom();
   const smtp = getTransport();
 
   if (!smtp) {
     console.log('[mailer] DEV MODE — no SMTP configured');
+    console.log(`[mailer]   From: ${sender}`);
     console.log(`[mailer]   To: ${to}`);
     console.log(`[mailer]   Subject: ${subject}`);
     console.log(`[mailer]   HTML: ${html.slice(0, 200)}...`);
@@ -78,7 +80,7 @@ async function sendMail({ to, subject, html }) {
   }
 
   const info = await smtp.sendMail({
-    from: getFrom(),
+    from: sender,
     to,
     subject,
     html,
@@ -106,13 +108,13 @@ const routes = {
     }
 
     const body = await readBody(req);
-    const { to, subject, html } = body;
+    const { to, subject, html, from } = body;
 
     if (!to || !subject || !html) {
       return json(res, 400, { error: 'Missing required fields: to, subject, html' });
     }
 
-    const result = await sendMail({ to, subject, html });
+    const result = await sendMail({ to, subject, html, from });
     json(res, 200, { success: true, messageId: result.messageId });
   },
 
@@ -122,7 +124,7 @@ const routes = {
     }
 
     const body = await readBody(req);
-    const { to, template, locale, data, subject: overrideSubject } = body;
+    const { to, template, locale, data, subject: overrideSubject, from } = body;
 
     if (!to || !template) {
       return json(res, 400, { error: 'Missing required fields: to, template' });
@@ -137,7 +139,7 @@ const routes = {
     const built = buildHtml(template, locale || 'en', data || {});
     const subject = overrideSubject || built.subject;
 
-    const result = await sendMail({ to, subject, html: built.html });
+    const result = await sendMail({ to, subject, html: built.html, from });
     json(res, 200, { success: true, messageId: result.messageId, subject });
   },
 };
