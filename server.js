@@ -1,5 +1,6 @@
 'use strict';
 
+// Public-path auth gating active (MAILER_TOKEN). Internal localhost calls stay open.
 const http = require('http');
 const nodemailer = require('nodemailer');
 const { buildHtml, templateNames } = require('./templates');
