@@ -1,5 +1,24 @@
 'use strict';
 
+// Lightweight .env loader (no dependency). CloudPipe's deploy doesn't re-inject env on
+// skipped deploys / restarts, so read .env ourselves at startup. Only fills keys that
+// aren't already in the injected env (so pm2-provided SMTP_* etc. win).
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+      if (m && process.env[m[1]] === undefined) {
+        let v = m[2];
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+        process.env[m[1]] = v;
+      }
+    }
+  }
+} catch { /* ignore — fall back to injected env */ }
+
 // Public-path auth gating active (MAILER_TOKEN). Internal localhost calls stay open.
 const http = require('http');
 const nodemailer = require('nodemailer');
