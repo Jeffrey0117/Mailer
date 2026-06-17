@@ -33,7 +33,17 @@ function json(res, status, data) {
 
 function requireAuth(req) {
   const token = process.env.MAILER_TOKEN;
-  if (!token) return true; // No token configured = open (dev mode)
+  if (!token) return true; // No token configured = open (dev mode / back-compat)
+
+  // Only the PUBLIC path needs the token. Requests arriving through the Cloudflare
+  // tunnel (mailer.isnowfriend.com) carry CF headers and/or the public Host; direct
+  // internal calls on the same box (http://localhost:4018 from data-api / seedblog /
+  // gateway SDK) do not. Internal callers keep working without auth — unchanged.
+  const host = req.headers.host || '';
+  const viaPublic = req.headers['cf-connecting-ip'] || req.headers['cf-ray'] ||
+    host.includes('isnowfriend.com');
+  if (!viaPublic) return true;
+
   const auth = req.headers.authorization || '';
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   return bearer === token;
@@ -66,13 +76,14 @@ function getFrom() {
   return process.env.SMTP_FROM || 'CloudPipe <noreply@isnowfriend.com>';
 }
 
-async function sendMail({ to, subject, html, from }) {
+async function sendMail({ to, subject, html, from, replyTo }) {
   const sender = from || getFrom();
   const smtp = getTransport();
 
   if (!smtp) {
     console.log('[mailer] DEV MODE — no SMTP configured');
     console.log(`[mailer]   From: ${sender}`);
+    if (replyTo) console.log(`[mailer]   Reply-To: ${replyTo}`);
     console.log(`[mailer]   To: ${to}`);
     console.log(`[mailer]   Subject: ${subject}`);
     console.log(`[mailer]   HTML: ${html.slice(0, 200)}...`);
@@ -84,6 +95,7 @@ async function sendMail({ to, subject, html, from }) {
     to,
     subject,
     html,
+    ...(replyTo ? { replyTo } : {}),
   });
 
   return { messageId: info.messageId };
@@ -108,13 +120,13 @@ const routes = {
     }
 
     const body = await readBody(req);
-    const { to, subject, html, from } = body;
+    const { to, subject, html, from, replyTo } = body;
 
     if (!to || !subject || !html) {
       return json(res, 400, { error: 'Missing required fields: to, subject, html' });
     }
 
-    const result = await sendMail({ to, subject, html, from });
+    const result = await sendMail({ to, subject, html, from, replyTo });
     json(res, 200, { success: true, messageId: result.messageId });
   },
 
@@ -124,7 +136,7 @@ const routes = {
     }
 
     const body = await readBody(req);
-    const { to, template, locale, data, subject: overrideSubject, from } = body;
+    const { to, template, locale, data, subject: overrideSubject, from, replyTo } = body;
 
     if (!to || !template) {
       return json(res, 400, { error: 'Missing required fields: to, template' });
@@ -139,7 +151,7 @@ const routes = {
     const built = buildHtml(template, locale || 'en', data || {});
     const subject = overrideSubject || built.subject;
 
-    const result = await sendMail({ to, subject, html: built.html, from });
+    const result = await sendMail({ to, subject, html: built.html, from, replyTo });
     json(res, 200, { success: true, messageId: result.messageId, subject });
   },
 };
