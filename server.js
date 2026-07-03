@@ -23,6 +23,7 @@ try {
 const http = require('http');
 const nodemailer = require('nodemailer');
 const { buildHtml, templateNames } = require('./templates');
+const campaign = require('./campaign');
 
 const PORT = parseInt(process.env.PORT || '4018', 10);
 
@@ -173,6 +174,28 @@ const routes = {
 
     const result = await sendMail({ to, subject, html: built.html, from, replyTo });
     json(res, 200, { success: true, messageId: result.messageId, subject });
+  },
+
+  // ─── Outreach campaigns (dedup + dry/test/send + logging) ───
+  'POST /api/campaign/send': async (req, res) => {
+    if (!requireAuth(req)) return json(res, 401, { error: 'Unauthorized' });
+    const body = await readBody(req);
+    try {
+      const result = await campaign.handleSend(body, sendMail);
+      json(res, 200, { success: true, ...result });
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
+  },
+
+  'GET /api/campaign/report': async (req, res) => {
+    if (!requireAuth(req)) return json(res, 401, { error: 'Unauthorized' });
+    const name = new URL(req.url, `http://localhost:${PORT}`).searchParams.get('campaign');
+    try {
+      json(res, 200, { success: true, ...campaign.handleReport(name) });
+    } catch (err) {
+      json(res, 400, { error: err.message });
+    }
   },
 };
 
