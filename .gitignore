@@ -13,3 +13,4 @@ db/
 *.log
 .DS_Store
 Thumbs.db
+campaign_sends.jsonl
